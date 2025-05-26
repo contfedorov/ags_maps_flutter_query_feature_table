@@ -106,7 +106,7 @@ class _MyHomePageState extends State<MyHomePage> {
   void _onTap(localPosition) async {
     final queryParameters = QueryParameters();
 
-    queryParameters.whereClause = "RELID = '1d0102e2-c130-4e5b-8631-be8bd8374990'"; // 3 rings.
+    queryParameters.whereClause = "RELID = '{1d0102e2-c130-4e5b-8631-be8bd8374990}'"; // 3 rings.
     // queryParameters.whereClause = "OBJECTID = 427"; // works well: returns single feature
     // queryParameters.whereClause = "RELID = '452df3d4-ec43-4118-b898-271eb8bb6cb3'"; // 1 ring.
 
