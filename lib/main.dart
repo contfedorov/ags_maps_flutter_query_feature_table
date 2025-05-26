@@ -2,10 +2,13 @@ import 'dart:convert';
 
 import 'package:arcgis_maps/arcgis_maps.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 import 'token_provider.dart';
 
 Future<void> main() async {
+  await dotenv.load(fileName: '.env');
+
   ArcGISEnvironment.authenticationManager.arcGISCredentialStore =
       await ArcGISCredentialStore.initPersistentStore();
 
@@ -42,8 +45,8 @@ class _MyHomePageState extends State<MyHomePage> {
   static final _portalUri = Uri.parse('https://www.arcgis.com');
   static final _oAuthUserConfiguration = OAuthUserConfiguration(
     portalUri: _portalUri,
-    clientId: "",
-    redirectUri: Uri.parse(""),
+    clientId: dotenv.get('OAUTH_CLIENT_ID'),
+    redirectUri: Uri.parse(dotenv.get('OAUTH_REDIRECT_URI')),
   );
   final _tokenProvider = TokenProvider(oAuthUserConfiguration: _oAuthUserConfiguration);
 
@@ -58,9 +61,7 @@ class _MyHomePageState extends State<MyHomePage> {
   void initState() {
     super.initState();
 
-    final featureServerUri = Uri.parse(
-        ""
-    );
+    final featureServerUri = Uri.parse(dotenv.get('FEATURE_SERVER_URI'));
 
     _pointFeatureTable = ServiceFeatureTable.withUri(Uri.parse(
         "$featureServerUri/0/"
