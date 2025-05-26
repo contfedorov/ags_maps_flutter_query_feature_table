@@ -4,8 +4,8 @@ import 'package:flutter/material.dart';
 import 'token_provider.dart';
 
 Future<void> main() async {
-  // ArcGISEnvironment.authenticationManager.arcGISCredentialStore =
-  //     await ArcGISCredentialStore.initPersistentStore();
+  ArcGISEnvironment.authenticationManager.arcGISCredentialStore =
+      await ArcGISCredentialStore.initPersistentStore();
 
   runApp(const MyApp());
 }
