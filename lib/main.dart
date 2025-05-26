@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:arcgis_maps/arcgis_maps.dart';
 import 'package:flutter/material.dart';
 
@@ -47,9 +49,10 @@ class _MyHomePageState extends State<MyHomePage> {
 
   late final FeatureTable _pointFeatureTable;
   late final FeatureLayer _pointFeatureLayer;
-  late final FeatureTable _buffersFeatureTable;
+  late final ServiceFeatureTable _buffersFeatureTable;
 
   final _mapViewController = ArcGISMapView.createController();
+  final _buffersLayer = GraphicsOverlay();
 
   @override
   void initState() {
@@ -78,6 +81,12 @@ class _MyHomePageState extends State<MyHomePage> {
       ),
       body: Column(
         children: [
+          ElevatedButton(
+              onPressed: () {
+                _buffersLayer.graphics.clear();
+              },
+              child: Text("Clear buffers")
+          ),
           Expanded(
             child: ArcGISMapView(
               controllerProvider: () => _mapViewController,
@@ -100,6 +109,8 @@ class _MyHomePageState extends State<MyHomePage> {
 
     map.tables.add(_buffersFeatureTable);
 
+    _mapViewController.graphicsOverlays.add(_buffersLayer);
+
     _mapViewController.arcGISMap = map;
   }
 
@@ -109,14 +120,50 @@ class _MyHomePageState extends State<MyHomePage> {
     queryParameters.whereClause = "RELID = '{1d0102e2-c130-4e5b-8631-be8bd8374990}'"; // 3 rings.
     // queryParameters.whereClause = "OBJECTID = 427"; // works well: returns single feature
     // queryParameters.whereClause = "RELID = '452df3d4-ec43-4118-b898-271eb8bb6cb3'"; // 1 ring.
+    queryParameters.orderByFields.add(
+        OrderBy(fieldName: "RING", sortOrder: SortOrder.descending)
+    );
 
-    final queryResult = await _buffersFeatureTable.queryFeatures(queryParameters);
+    final queryResult = await _buffersFeatureTable.queryFeaturesWithFieldOptions(
+        parameters: queryParameters, queryFeatureFields: QueryFeatureFields.loadAll);
 
-    final features = queryResult.features();
+    final features = queryResult.features().toList();
     if (features.isEmpty) {
       print("no features queried");
     } else {
       print("features num: ${features.length}");
     }
+
+    _orderRings(features, "RING");
+
+    _buffersLayer.graphics.clear();
+
+    final graphics = features.map((feature) {
+      final symbolString = feature.attributes["SYMBOL"] as String;
+      final json = jsonDecode(symbolString);
+      final symbol = ArcGISSymbol.fromJson(json);
+
+      return Graphic(
+        geometry: feature.geometry,
+        attributes: feature.attributes,
+        symbol: symbol,
+      );
+    });
+
+    _buffersLayer.graphics.addAll(graphics);
+
+    final lastGeometry = graphics.first.geometry!;
+
+    _mapViewController.setViewpointGeometry(lastGeometry, paddingInDiPs: 50);
+  }
+
+  // manual rings ordering according to value of [ringFieldName]
+  void _orderRings(List<Feature> rings, String? ringFieldName) {
+    rings.sort((f1, f2) {
+      int? ring1 = f1.attributes[ringFieldName];
+      int? ring2 = f2.attributes[ringFieldName];
+
+      return (ring1 != null && ring2 != null) ? (ring2.compareTo(ring1)) : 0;
+    });
   }
 }
