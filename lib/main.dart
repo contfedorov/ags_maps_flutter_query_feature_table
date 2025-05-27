@@ -164,7 +164,7 @@ class _MyHomePageState extends State<MyHomePage> {
       int? ring1 = f1.attributes[ringFieldName];
       int? ring2 = f2.attributes[ringFieldName];
 
-      return (ring1 != null && ring2 != null) ? (ring2.compareTo(ring1)) : 0;
+      return (ring1 != null && ring2 != null) ? (ring1.compareTo(ring2)) : 0;
     });
   }
 }
