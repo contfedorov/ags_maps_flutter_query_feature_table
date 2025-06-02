@@ -139,6 +139,7 @@ class _MyHomePageState extends State<MyHomePage> {
 
     _buffersLayer.graphics.clear();
 
+    var i = features.length;
     final graphics = features.map((feature) {
       final symbolString = feature.attributes["SYMBOL"] as String;
       final json = jsonDecode(symbolString);
@@ -148,7 +149,7 @@ class _MyHomePageState extends State<MyHomePage> {
         geometry: feature.geometry,
         attributes: feature.attributes,
         symbol: symbol,
-      );
+      )..zIndex = i--;
     });
 
     _buffersLayer.graphics.addAll(graphics);
