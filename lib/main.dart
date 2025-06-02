@@ -1,5 +1,3 @@
-import 'dart:convert';
-
 import 'package:arcgis_maps/arcgis_maps.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
@@ -53,9 +51,10 @@ class _MyHomePageState extends State<MyHomePage> {
   late final FeatureTable _pointFeatureTable;
   late final FeatureLayer _pointFeatureLayer;
   late final ServiceFeatureTable _buffersFeatureTable;
+  late final FeatureLayer _buffersFeatureLayer;
 
   final _mapViewController = ArcGISMapView.createController();
-  final _buffersLayer = GraphicsOverlay();
+  static final _emptyDefExpression = "1!=1";
 
   @override
   void initState() {
@@ -71,6 +70,9 @@ class _MyHomePageState extends State<MyHomePage> {
     _buffersFeatureTable = ServiceFeatureTable.withUri(Uri.parse(
         "$featureServerUri/1/"
     ));
+    _buffersFeatureLayer =
+        FeatureLayer.withFeatureTable(_buffersFeatureTable)
+        ..definitionExpression = _emptyDefExpression; // don't load and show anything
   }
 
   @override
@@ -83,10 +85,20 @@ class _MyHomePageState extends State<MyHomePage> {
       body: Column(
         children: [
           ElevatedButton(
-              onPressed: () {
-                _buffersLayer.graphics.clear();
-              },
-              child: Text("Clear buffers")
+              onPressed: () async {
+                final defExpression = _buffersFeatureLayer.definitionExpression;
+                print("defExpression for features querying: $defExpression");
+
+                final parameters = QueryParameters();
+                parameters.whereClause = defExpression;
+
+                final queryResult = await _buffersFeatureLayer.selectFeaturesWithQuery(
+                    parameters: parameters, mode: SelectionMode.new_);
+
+                final features = queryResult.features().toList();
+                print("Queried Features count: ${features.length}");
+                _buffersFeatureLayer.clearSelection(); // no highlight needed
+              }, child: Text("Grab features")
           ),
           Expanded(
             child: ArcGISMapView(
@@ -105,58 +117,43 @@ class _MyHomePageState extends State<MyHomePage> {
         portal: Portal.arcGISOnline(connection: PortalConnection.authenticated),
         itemId: "22fb75c0fa5a4c88b8ca4c4b8ae5c90b"));
 
+    map.operationalLayers.add(_buffersFeatureLayer);
     map.operationalLayers.add(_pointFeatureLayer);
-    await _pointFeatureLayer.load();
-
-    map.tables.add(_buffersFeatureTable);
-
-    _mapViewController.graphicsOverlays.add(_buffersLayer);
+    map.initialViewpoint = Viewpoint.fromCenter(
+      ArcGISPoint(
+        x: -117.048625,
+        y: 32.537078,
+        spatialReference: SpatialReference.wgs84,
+      ),
+      scale: 110000,
+    );
+    await map.load();
 
     _mapViewController.arcGISMap = map;
   }
 
   void _onTap(localPosition) async {
-    final queryParameters = QueryParameters();
+    final globalId = await _getGlobalId(localPosition);
+    print("setting definition expression with GUID: $globalId");
 
-    queryParameters.whereClause = "RELID = '{1d0102e2-c130-4e5b-8631-be8bd8374990}'"; // 3 rings.
-    // queryParameters.whereClause = "OBJECTID = 427"; // works well: returns single feature
-    // queryParameters.whereClause = "RELID = '452df3d4-ec43-4118-b898-271eb8bb6cb3'"; // 1 ring.
-    queryParameters.orderByFields.add(
-        OrderBy(fieldName: "RING", sortOrder: SortOrder.descending)
+    final defExpression = "RELID = '${globalId?.toString()}'"; // {1d0102e2-c130-4e5b-8631-be8bd8374990}
+    // ORDER BY RING
+    _buffersFeatureLayer.definitionExpression = defExpression;
+
+    print("Definition expression set: ${_buffersFeatureLayer.definitionExpression}");
+  }
+
+  Future<Guid?> _getGlobalId(Offset localPosition) async {
+    final identifyLayerResults = await _mapViewController.identifyLayers(
+      screenPoint: localPosition,
+      tolerance: 12,
     );
 
-    final queryResult = await _buffersFeatureTable.queryFeaturesWithFieldOptions(
-        parameters: queryParameters, queryFeatureFields: QueryFeatureFields.loadAll);
+    // handle only 1 result from 1 layer simultaneously
+    final result = identifyLayerResults.firstOrNull;
+    final element = result?.geoElements.firstOrNull;
 
-    final features = queryResult.features().toList();
-    if (features.isEmpty) {
-      print("no features queried");
-    } else {
-      print("features num: ${features.length}");
-    }
-
-    _orderRings(features, "RING");
-
-    _buffersLayer.graphics.clear();
-
-    var i = features.length;
-    final graphics = features.map((feature) {
-      final symbolString = feature.attributes["SYMBOL"] as String;
-      final json = jsonDecode(symbolString);
-      final symbol = ArcGISSymbol.fromJson(json);
-
-      return Graphic(
-        geometry: feature.geometry,
-        attributes: feature.attributes,
-        symbol: symbol,
-      )..zIndex = i--;
-    });
-
-    _buffersLayer.graphics.addAll(graphics);
-
-    final lastGeometry = graphics.first.geometry!;
-
-    _mapViewController.setViewpointGeometry(lastGeometry, paddingInDiPs: 50);
+    return element?.attributes["GLOBALID"];
   }
 
   // manual rings ordering according to value of [ringFieldName]
