@@ -116,9 +116,11 @@ class _MyHomePageState extends State<MyHomePage> {
   }
 
   void _onTap(localPosition) async {
+    final globalId = await _getGlobalId(localPosition);
+
     final queryParameters = QueryParameters();
 
-    queryParameters.whereClause = "RELID = '{1d0102e2-c130-4e5b-8631-be8bd8374990}'"; // 3 rings.
+    queryParameters.whereClause = "RELID = '${globalId?.toString()}'"; // 3 rings: {1d0102e2-c130-4e5b-8631-be8bd8374990}
     // queryParameters.whereClause = "OBJECTID = 427"; // works well: returns single feature
     // queryParameters.whereClause = "RELID = '452df3d4-ec43-4118-b898-271eb8bb6cb3'"; // 1 ring.
     queryParameters.orderByFields.add(
@@ -157,6 +159,19 @@ class _MyHomePageState extends State<MyHomePage> {
     final lastGeometry = graphics.first.geometry!;
 
     _mapViewController.setViewpointGeometry(lastGeometry, paddingInDiPs: 50);
+  }
+
+  Future<Guid?> _getGlobalId(Offset localPosition) async {
+    final identifyLayerResults = await _mapViewController.identifyLayers(
+      screenPoint: localPosition,
+      tolerance: 12,
+    );
+
+    // handle only 1 result from 1 layer simultaneously
+    final result = identifyLayerResults.firstOrNull;
+    final element = result?.geoElements.firstOrNull;
+
+    return element?.attributes["GLOBALID"];
   }
 
   // manual rings ordering according to value of [ringFieldName]
