@@ -73,6 +73,12 @@ class _MyHomePageState extends State<MyHomePage> {
     _buffersFeatureLayer =
         FeatureLayer.withFeatureTable(_buffersFeatureTable)
         ..definitionExpression = _emptyDefExpression; // don't load and show anything
+
+    // final displayFilter = DisplayFilter.withWhereClause(name: "display filter name", whereClause: "1=1");
+    // // ORDER BY RING
+    // _buffersFeatureLayer.displayFilterDefinition =
+    //     ManualDisplayFilterDefinition.withFilters(activeFilter: displayFilter,
+    //         availableFilters: [displayFilter]);
   }
 
   @override
