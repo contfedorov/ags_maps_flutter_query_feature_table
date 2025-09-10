@@ -7,8 +7,9 @@ import 'token_provider.dart';
 Future<void> main() async {
   await dotenv.load(fileName: '.env');
 
-  ArcGISEnvironment.authenticationManager.arcGISCredentialStore =
-      await ArcGISCredentialStore.initPersistentStore();
+  ArcGISEnvironment.apiKey = dotenv.get('OAUTH_TOKEN');
+  // ArcGISEnvironment.authenticationManager.arcGISCredentialStore =
+  //     await ArcGISCredentialStore.initPersistentStore();
 
   runApp(const MyApp());
 }
@@ -51,7 +52,9 @@ class _MyHomePageState extends State<MyHomePage> {
   late final FeatureTable _pointFeatureTable;
   late final FeatureLayer _pointFeatureLayer;
   late final ServiceFeatureTable _buffersFeatureTable;
-  late final FeatureLayer _buffersFeatureLayer;
+  // late final FeatureLayer _buffersFeatureLayer;
+
+  FeatureCollectionLayer? _fcLayer;
 
   final _mapViewController = ArcGISMapView.createController();
   static final _emptyDefExpression = "1!=1";
@@ -70,9 +73,14 @@ class _MyHomePageState extends State<MyHomePage> {
     _buffersFeatureTable = ServiceFeatureTable.withUri(Uri.parse(
         "$featureServerUri/1/"
     ));
-    _buffersFeatureLayer =
-        FeatureLayer.withFeatureTable(_buffersFeatureTable)
-        ..definitionExpression = _emptyDefExpression; // don't load and show anything
+    // _buffersFeatureLayer =
+    //     FeatureLayer.withFeatureTable(_buffersFeatureTable)
+    //     ..definitionExpression = _emptyDefExpression; // don't load and show anything
+
+
+    // var _buffersFeatureLayer =
+    //     FeatureLayer.withFeatureTable(_buffersFeatureTable)
+
 
     // final displayFilter = DisplayFilter.withWhereClause(name: "display filter name", whereClause: "1=1");
     // // ORDER BY RING
@@ -92,18 +100,18 @@ class _MyHomePageState extends State<MyHomePage> {
         children: [
           ElevatedButton(
               onPressed: () async {
-                final defExpression = _buffersFeatureLayer.definitionExpression;
-                print("defExpression for features querying: $defExpression");
-
-                final parameters = QueryParameters();
-                parameters.whereClause = defExpression;
-
-                final queryResult = await _buffersFeatureLayer.selectFeaturesWithQuery(
-                    parameters: parameters, mode: SelectionMode.new_);
-
-                final features = queryResult.features().toList();
-                print("Queried Features count: ${features.length}");
-                _buffersFeatureLayer.clearSelection(); // no highlight needed
+                // final defExpression = _buffersFeatureLayer.definitionExpression;
+                // print("defExpression for features querying: $defExpression");
+                //
+                // final parameters = QueryParameters();
+                // parameters.whereClause = defExpression;
+                //
+                // final queryResult = await _buffersFeatureLayer.selectFeaturesWithQuery(
+                //     parameters: parameters, mode: SelectionMode.new_);
+                //
+                // final features = queryResult.features().toList();
+                // print("Queried Features count: ${features.length}");
+                // _buffersFeatureLayer.clearSelection(); // no highlight needed
               }, child: Text("Grab features")
           ),
           Expanded(
@@ -123,7 +131,8 @@ class _MyHomePageState extends State<MyHomePage> {
         portal: Portal.arcGISOnline(connection: PortalConnection.authenticated),
         itemId: "22fb75c0fa5a4c88b8ca4c4b8ae5c90b"));
 
-    map.operationalLayers.add(_buffersFeatureLayer);
+    // map.operationalLayers.add(_buffersFeatureLayer);
+
     map.operationalLayers.add(_pointFeatureLayer);
     map.initialViewpoint = Viewpoint.fromCenter(
       ArcGISPoint(
@@ -140,13 +149,108 @@ class _MyHomePageState extends State<MyHomePage> {
 
   void _onTap(localPosition) async {
     final globalId = await _getGlobalId(localPosition);
-    print("setting definition expression with GUID: $globalId");
-
+    print("GLOBALID: $globalId");
     final defExpression = "RELID = '${globalId?.toString()}'"; // {1d0102e2-c130-4e5b-8631-be8bd8374990}
-    // ORDER BY RING
-    _buffersFeatureLayer.definitionExpression = defExpression;
+    print("Definition expression: $defExpression");
 
-    print("Definition expression set: ${_buffersFeatureLayer.definitionExpression}");
+    // ORDER BY RING
+    // _buffersFeatureLayer.definitionExpression = defExpression;
+
+    // print("Definition expression set: ${_buffersFeatureLayer.definitionExpression}");
+
+    ///--- several requests: 1 per RING
+
+    // final fcTables = await Future.wait([3, 2, 1].map((ringId) async {
+    //   final defExpression = "RELID = '${globalId?.toString()}' AND RING = $ringId";
+    //
+    //   final parameters = QueryParameters();
+    //   parameters.whereClause = defExpression;
+    //
+    //   // _buffersFeatureTable.queryFeaturesWithFieldOptions(parameters: parameters, queryFeatureFields: queryFeatureFields)
+    //
+    //   // final queryResult = await _buffersFeatureLayer.selectFeaturesWithQuery(
+    //   //     parameters: parameters, mode: SelectionMode.new_);
+    //
+    //   // final queryResult = await _buffersFeatureTable.queryFeatures(parameters);
+    //   final queryResult = await _buffersFeatureTable.queryFeaturesWithFieldOptions(
+    //       parameters: parameters, queryFeatureFields: QueryFeatureFields.loadAll);
+    //
+    //   if (queryResult.features().isNotEmpty) {
+    //     final renderer = SimpleRenderer(
+    //       symbol: ArcGISSymbol.fromJsonString(queryResult.features().first.attributes["SYMBOL"]),
+    //     );
+    //
+    //     return FeatureCollectionTable.withFeatureSet(queryResult)
+    //     ..renderer = renderer;
+    //   }
+    // }));
+
+    // FeatureCollection fc = FeatureCollection.withTables(fcTables.nonNulls.toList());
+
+
+    /// --- single request for all RINGs
+
+    final parameters = QueryParameters();
+    parameters.whereClause = defExpression;
+    parameters.orderByFields.add(
+      OrderBy(fieldName: "RING", sortOrder: SortOrder.ascending)
+    );
+
+    final queryResult = await _buffersFeatureTable.queryFeaturesWithFieldOptions(
+        parameters: parameters, queryFeatureFields: QueryFeatureFields.loadAll);
+
+    if (queryResult.features().isEmpty) {
+      print("Result query has no features");
+      return;
+    }
+
+    final features = queryResult.features().toList();
+    // _orderRings(features, "RING");
+
+    final fcTables = features.reversed.map((feature) { // reversed to put on map in correct order
+      print("New FeatureTable, RING: ${feature.attributes['ring']}");
+      // works well
+      final fcTable = FeatureCollectionTable(
+        fields: queryResult.fields,
+        geometryType: queryResult.geometryType,
+        spatialReference: queryResult.spatialReference,
+      )
+      ..addFeature(feature);
+
+      // fails with exception: 'Unsupported element type'
+      // final fcTable = FeatureCollectionTable.withGeoElements(
+      //     geoElements: [feature],
+      //     fields: queryResult.fields);
+
+      // fails with exception: 'Unsupported element type'
+      // final graphic = Graphic(
+      //   geometry: feature.geometry,
+      //   attributes: feature.attributes,
+      //   symbol: ArcGISSymbol.fromJsonString(feature.attributes["SYMBOL"]),
+      // );
+      // final fcTable = FeatureCollectionTable.withGeoElements(
+      //     geoElements: [graphic],
+      //     fields: queryResult.fields);
+
+      fcTable.renderer = SimpleRenderer(
+        symbol: ArcGISSymbol.fromJsonString(feature.attributes["SYMBOL"]),
+      );
+
+      return fcTable;
+    });
+
+
+    /// --- adding to map
+
+    FeatureCollection fc = FeatureCollection.withTables(fcTables.toList());
+
+    if (_fcLayer != null) {
+      _mapViewController.arcGISMap?.operationalLayers.remove(_fcLayer);
+    }
+
+    _fcLayer = FeatureCollectionLayer.withFeatureCollection(fc);
+
+    _mapViewController.arcGISMap?.operationalLayers.insert(0, _fcLayer!);
   }
 
   Future<Guid?> _getGlobalId(Offset localPosition) async {
