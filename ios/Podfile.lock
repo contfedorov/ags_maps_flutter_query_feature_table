@@ -98,7 +98,7 @@ SPEC CHECKSUMS:
   arcgis_maps: e511e0abf54f3755fce74424cc30df54139e34d7
   arcgis_maps_ffi: 5a9fda783e69112f085898c75505eb588df61ab2
   device_info_plus: bf2e3232933866d73fe290f2942f2156cdd10342
-  Flutter: e0871f40cf51350855a761d2e70bf5af5b9b5de7
+  Flutter: cabc95a1d2626b1b06e7179b784ebcf0c0cde467
   flutter_secure_storage: d33dac7ae2ea08509be337e775f6b59f1ff45f12
   flutter_web_auth_2: 06d500582775790a0d4c323222fcb6d7990f9603
   geolocator_apple: 66b711889fd333205763b83c9dcf0a57a28c7afd
